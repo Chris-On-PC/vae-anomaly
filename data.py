@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 
 class XrayImageDataset(torch.utils.data.Dataset):
-    def __init__(self, img_dir, transform: Optional[Callable] = None, patch_size: int = 128, overlap: float = 0.25):
+    def __init__(self, img_dir, transform = None, patch_size: int = 128, overlap: float = 0.25):
         #super(XrayImageDataset, self).__init__(img_dir, transform=transform, patch_size = patch_size, overlap = overlap)
 
         self.img_dir = img_dir
@@ -15,13 +15,14 @@ class XrayImageDataset(torch.utils.data.Dataset):
         self.patch_size = patch_size
         self.filenames = os.listdir(self.img_dir)
 
-
     def __len__(self):
         return len(self.filenames)
 
     def __getitem__(self, idx):
-        image = cv2.imread(os.path.join(self.img_dir, self.filenames[idx]))
+
+        image = cv2.imread(os.path.join(self.img_dir, self.filenames[idx]), cv2.IMREAD_GRAYSCALE)
         patches = self.split_image(image)
+        print(patches.shape)
         if self.transform:
             patches = self.transform(patches)
 
@@ -29,18 +30,17 @@ class XrayImageDataset(torch.utils.data.Dataset):
 
 
     def split_image(self, image):
-        img_h, img_w, img_d = image.shape
+        img_h, img_w= image.shape
 
         X_points = self.start_points(img_w, self.patch_size, self.overlap)
         Y_points = self.start_points(img_h, self.patch_size, self.overlap)
         count = 0
         frmt = "png"
-        patches = np.empty((len(Y_points)*len(X_points), self.patch_size, self.patch_size, img_d))
+        patches = np.empty((len(Y_points)*len(X_points), self.patch_size, self.patch_size))
         for i in Y_points:
             for j in X_points:
                 split = image[i:i+self.patch_size, j:j+self.patch_size]
-
-                patches[count, :, :, :] = split
+                patches[count, :, :] = split
                 cv2.imwrite('patch_{}.{}'.format( count, frmt), split)
                 count += 1
         return patches
@@ -59,3 +59,32 @@ class XrayImageDataset(torch.utils.data.Dataset):
                 points.append(pt)
             counter += 1
         return points
+
+class CustomLoader(object):
+
+    def __init__(self, dataset, batch_size, drop_last=False):
+
+        self.ds = dataset
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+        self.sampler = torch.utils.data.RandomSampler(dataset)
+
+    def __iter__(self):
+        batch = torch.Tensor()
+
+        for idx in self.sampler:
+            print(self.ds[idx].shape)
+            batch = torch.cat([batch, torch.transpose(self.ds[idx], 0,1)])
+            print(batch.shape)
+            while batch.size(0) >= self.batch_size:
+                if batch.size(0) == self.batch_size:
+
+                    yield batch
+                    batch = torch.Tensor()
+
+                else:
+                    return_batch, batch = batch.split([self.batch_size,  batch.size(0) - self.batch_size])
+                    yield return_batch
+
+        if batch.size(0) > 0 and not self.drop_last:
+            yield batch
