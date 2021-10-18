@@ -3,14 +3,12 @@ import torch
 from torch import optim
 from models import BaseVAE
 from models.types_ import *
-from data import XrayImageDataset
-from utils import data_loader
 import pytorch_lightning as pl
 from torchvision import transforms
 import torchvision.utils as vutils
 from torchvision.datasets import CelebA
 from torch.utils.data import DataLoader
-
+import numpy as np
 
 class VAEXperiment(pl.LightningModule):
 
@@ -23,6 +21,7 @@ class VAEXperiment(pl.LightningModule):
         self.params = params
         self.curr_device = None
         self.hold_graph = False
+
         try:
             self.hold_graph = self.params['retain_first_backpass']
         except:
@@ -32,10 +31,10 @@ class VAEXperiment(pl.LightningModule):
         return self.model(input, **kwargs)
 
     def training_step(self, batch, batch_idx, optimizer_idx = 0):
-        real_img, labels = batch
-        self.curr_device = real_img.device
+        
+        self.curr_device = batch.device
 
-        results = self.forward(real_img, labels = labels)
+        results = self.forward(batch)
         train_loss = self.model.loss_function(*results,
                                               M_N = self.params['batch_size']/ self.num_train_imgs,
                                               optimizer_idx=optimizer_idx,
@@ -46,10 +45,10 @@ class VAEXperiment(pl.LightningModule):
         return train_loss
 
     def validation_step(self, batch, batch_idx, optimizer_idx = 0):
-        real_img, labels = batch
-        self.curr_device = real_img.device
+        
+        self.curr_device = batch.device
 
-        results = self.forward(real_img, labels = labels)
+        results = self.forward(batch)
         val_loss = self.model.loss_function(*results,
                                             M_N = self.params['batch_size']/ self.num_val_imgs,
                                             optimizer_idx = optimizer_idx,
@@ -133,69 +132,4 @@ class VAEXperiment(pl.LightningModule):
         except:
             return optims
 
-    @data_loader
-    def train_dataloader(self):
-        transform = self.data_transforms()
 
-        if self.params['dataset'] == 'celeba':
-            dataset = CelebA(root = self.params['data_path'],
-                             split = "train",
-                             transform=transform,
-                             download=False)
-        
-        if self.params['dataset'] == 'xray':
-            dataset = XrayImageDataset(root = self.params['data_path'],
-                             split = "train",
-                             transform=transform,
-                             patch_size=self.params['patch_size'],
-                             overlap=self.params['overlap'])
-        else:
-            raise ValueError('Undefined dataset type')
-
-        self.num_train_imgs = len(dataset)
-        return DataLoader(dataset,
-                          batch_size= self.params['batch_size'])
-
-    @data_loader
-    def val_dataloader(self):
-        transform = self.data_transforms()
-
-        if self.params['dataset'] == 'celeba':
-            self.sample_dataloader =  DataLoader(CelebA(root = self.params['data_path'],
-                                                        split = "test",
-                                                        transform=transform,
-                                                        patch_size=self.params['patch_size'],
-                                                        overlap=self.params['overlap']))
-                                                        
-            self.num_val_imgs = len(self.sample_dataloader)
-
-        if self.params['dataset'] == 'xray':
-            self.sample_dataloader =  DataLoader(XrayImageDataset(root = self.params['data_path'],
-                                                        split = "test",
-                                                        transform=transform),
-                                                 batch_size= 144,
-                                                 shuffle = True,
-                                                 drop_last=True)
-            self.num_val_imgs = len(self.sample_dataloader)
-        else:
-            raise ValueError('Undefined dataset type')
-
-        return self.sample_dataloader
-
-    def data_transforms(self):
-
-        SetRange = transforms.Lambda(lambda X: 2 * X - 1.)
-        SetScale = transforms.Lambda(lambda X: X/X.sum(0).expand_as(X))
-
-        if self.params['dataset'] == 'celeba':
-            transform = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                            transforms.CenterCrop(148),
-                                            transforms.Resize(self.params['img_size']),
-                                            transforms.ToTensor(),
-                                            SetRange])
-        if self.params['dataset'] == 'xray':
-            transform = transforms.Compose([transforms.ToTensor(),
-                                            SetRange])
-        else:
-            raise ValueError('Undefined dataset type')
-        return transform
