@@ -33,14 +33,13 @@ class VAEXperiment(pl.LightningModule):
     def training_step(self, batch, batch_idx, optimizer_idx = 0):
         
         self.curr_device = batch.device
-
         results = self.forward(batch)
         train_loss = self.model.loss_function(*results,
-                                              M_N = self.params['batch_size']/ self.num_train_imgs,
+                                              M_N = self.params['batch_size'],
                                               optimizer_idx=optimizer_idx,
                                               batch_idx = batch_idx)
-
-        self.logger.experiment.log({key: val.item() for key, val in train_loss.items()})
+        for key, val in train_loss.items():
+            self.logger.experiment.add_scalar(key, val.item())
 
         return train_loss
 
@@ -50,7 +49,7 @@ class VAEXperiment(pl.LightningModule):
 
         results = self.forward(batch)
         val_loss = self.model.loss_function(*results,
-                                            M_N = self.params['batch_size']/ self.num_val_imgs,
+                                            M_N = self.params['batch_size'],
                                             optimizer_idx = optimizer_idx,
                                             batch_idx = batch_idx)
 

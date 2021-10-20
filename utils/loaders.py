@@ -83,21 +83,21 @@ class CustomLoader(object):
         batch = torch.Tensor()
 
         for idx in self.sampler:
-            print(self.ds[idx].shape)
+            
             batch = torch.cat([batch, torch.transpose(self.ds[idx], 0,1)])
-            print(batch.shape)
+            
             while batch.size(0) >= self.batch_size:
                 if batch.size(0) == self.batch_size:
 
-                    yield batch
+                    yield torch.unsqueeze(batch, 1).to(torch.float32)
                     batch = torch.Tensor()
 
                 else:
                     return_batch, batch = batch.split([self.batch_size,  batch.size(0) - self.batch_size])
-                    yield return_batch
+                    yield torch.unsqueeze(return_batch, 1).to(torch.float32)
 
         if batch.size(0) > 0 and not self.drop_last:
-            yield batch
+            yield torch.unsqueeze(batch, 1).to(torch.float32)
 
 
 class Img_To_1(object):

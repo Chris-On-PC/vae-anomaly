@@ -5,7 +5,6 @@ model_params:
 
 exp_params:
   dataset: xray
-  img_size: 128
   batch_size: 144 # Better to have a square number
   LR: 0.005
   weight_decay: 0.0
