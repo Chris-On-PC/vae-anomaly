@@ -38,10 +38,16 @@ class VAEXperiment(pl.LightningModule):
                                               M_N = self.params['batch_size'],
                                               optimizer_idx=optimizer_idx,
                                               batch_idx = batch_idx)
-        for key, val in train_loss.items():
-            self.logger.experiment.add_scalar(key, val.item())
+        # for key, val in train_loss.items():
+        #     self.logger.experiment.add_scalar(key, val.item())
 
         return train_loss
+
+    def training_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
+        # tensorboard_logs = {'avg_val_loss': avg_loss}
+        
+        # # return {'train_loss': avg_loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, optimizer_idx = 0):
         
@@ -52,7 +58,8 @@ class VAEXperiment(pl.LightningModule):
                                             M_N = self.params['batch_size'],
                                             optimizer_idx = optimizer_idx,
                                             batch_idx = batch_idx)
-
+        # for key, val in val_loss.items():
+        #     self.logger.experiment.add_scalar(key, val.item())
         return val_loss
 
     def validation_end(self, outputs):
