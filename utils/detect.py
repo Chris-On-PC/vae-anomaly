@@ -4,41 +4,48 @@ import os
 
 
 def convert_video(video_path):
-
-    cap = load_video(video_path)
-    
+    """
+    """
+    cap = load_video(video_path) # load video
+    output_dir = create_output(video_path)
     frame_number = 1
     success, image = cap.read()
-    temp_frame = image
+    temp_frame = None
     area = None
     while success:
+        if area == None:
+            area = detect_acquisition_area(image) # try detect acquisition areas
+            if len(area) == 0 or area == None:
+                continue # continue if none are detected
 
-        
-        old_mean, new_mean = get_intensity_levels(temp_frame, image)
-
-        if old_mean == 0 and new_mean != 0:
-            start_frame  = frame_number
-            print(f"Start frame: {start_frame}")
-            area = detect_acquisition_area(image)
-            if len(area) != 0:
+            # Only use channel captured in video
+            if "Frontal" in video_path:
                 area = area[0]
-                output_dir = create_output(video_path)
+
+            elif "Lateral" in video_path and len(area)>1:
+                area = area[1]
             else:
-                break
-             
-
-        if area:
+                area = None  
+        else:
+            
+            # crop to area
             cropped_area = crop_image(image, area["x"], area["x"]+area["width"], area["y"], area["y"]+ area["height"])
-            fullpath = os.path.join(output_dir, str(frame_number)+".png")
-            cv2.imwrite(fullpath, cropped_area)
+            if temp_frame is None:
+                temp_frame = cropped_area
 
-        temp_frame = image
+            old_mean, new_mean = get_intensity_levels(temp_frame, cropped_area) # get some intesity values in area
+            
+            if new_mean != old_mean and new_mean != 0: # if the new value is not black and not equal to old value, save!
+                start_frame  = frame_number
+                # print(f"Start frame: {start_frame}")
+                fullpath = os.path.join(output_dir, str(frame_number)+".png")
+                cv2.imwrite(fullpath, cropped_area)
 
-        
+            temp_frame = cropped_area
 
         success, image = cap.read()
         frame_number += 1
-
+    print("Done with video...")    
     return
 
 def crop_image(image, startx, endx, starty, endy):
@@ -62,7 +69,7 @@ def get_intensity_levels(old_frame, new_frame):
     return old_mean, new_mean
     
 def create_output(video_path):
-    top_folder = os.path.dirname(video_path)
+    top_folder = os.path.dirname(os.path.dirname(video_path))
     base_name = os.path.basename(video_path)
     # print(base_name)
     # filename, extension = os.path.split(base_name)
